@@ -1,0 +1,228 @@
+#+title: Silly =memset= Benchmark
+
+- CPU Model :: AMD RYZEN AI MAX+ 395 w/ Radeon 8060S
+- CPU Boost :: Limited to 4.4 GHz
+- Kernel    :: 6.18.6-1-default #1 SMP PREEMPT_DYNAMIC
+- Benchmark :: file:./memset_bench.c
+
+Note: The system on which this data was collected used an AVX-512 specialized version of
+=memset= (written in assembly). The particular =memset= function have different internal
+paths depending on input and may fallback to using =stosb=, but for the data collected
+herein, it used AVX-512 instructions.
+
+#+begin_example
+(gdb) f
+#0  __memset_avx512_unaligned_erms () at ../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:198
+#+end_example
+
+Compile benchmark:
+
+#+begin_src bash
+  ./compile.bash
+#+end_src
+
+Data collection:
+
+#+begin_src bash
+  mkdir -p out
+  for i in $(seq 250); do
+      for n in 1 2 4 8 16 32 64; do
+  	./memset_bench $n > out/${n}_${i}.txt
+      done
+  done
+#+end_src
+
+Data summary:
+
+#+begin_src bash
+  midline() {
+    awk '{ a[NR]=$0 } END { print a[int((NR+1)/2)] }' "$1"
+  }
+
+  for n in 1 2 4 8 16 32 64; do
+      echo "$n $(midline <(cat out/${n}_*.txt | sort)) $(head -1 <(cat out/${n}_*.txt | sort)) $(tail -1 <(cat out/${n}_*.txt | sort))"
+  done
+#+end_src
+
+* Results
+** THP always, defrag madvise
+These settings were the default for the openSUSE Tumbleweed OS when this benchamark was run.
+
+Transparent huge pages OS settings:
+
+#+begin_src bash
+  cat /sys/kernel/mm/transparent_hugepage/enabled
+#+end_src
+
+#+RESULTS:
+: [always] madvise never
+
+#+begin_src bash
+  cat /sys/kernel/mm/transparent_hugepage/defrag
+#+end_src
+
+#+RESULTS:
+: always defer defer+madvise [madvise] never
+
+#+begin_src bash
+cat /sys/kernel/mm/transparent_hugepage/hpage_pmd_size
+#+end_src
+
+#+RESULTS:
+: 2097152
+
+#+begin_src bash
+  cat /sys/kernel/mm/transparent_hugepage/khugepaged/defrag
+#+end_src
+
+#+RESULTS:
+: 1
+
+#+CAPTION: Benchmark result with transparent huge pages and defrag madvise
+| Iterations (n) |    Mean B/s |     Min B/s |     Max B/s | Range relative max |
+|----------------+-------------+-------------+-------------+--------------------|
+|              1 | 21474836480 | 20221126629 | 23241165021 | 13.0 %             |
+|              2 | 26978437788 | 25718367041 | 27889398025 | 7.8 %              |
+|              4 | 31122951420 | 30055754345 | 31697175616 | 5.2 %              |
+|              8 | 33712459152 | 33025507850 | 34100574005 | 3.2 %              |
+|             16 | 35175817330 | 34168395354 | 35393220403 | 3.5 %              |
+|             32 | 35933631424 | 34978864265 | 36107333299 | 3.1 %              |
+|             64 | 36305725240 | 35716983750 | 36488863556 | 2.1 %              |
+#+TBLFM: $5=($4-$3)*100/$4;%.1f %%
+
+** THP always, defrag always
+Transparent huge pages OS settings:
+
+#+begin_src bash
+  cat /sys/kernel/mm/transparent_hugepage/enabled
+#+end_src
+
+#+RESULTS:
+: [always] madvise never
+
+#+begin_src bash
+  cat /sys/kernel/mm/transparent_hugepage/defrag
+#+end_src
+
+#+RESULTS:
+: [always] defer defer+madvise madvise never
+
+#+begin_src bash
+cat /sys/kernel/mm/transparent_hugepage/hpage_pmd_size
+#+end_src
+
+#+RESULTS:
+: 2097152
+
+#+begin_src bash
+  cat /sys/kernel/mm/transparent_hugepage/khugepaged/defrag
+#+end_src
+
+#+RESULTS:
+: 1
+
+#+CAPTION: Benchmark result with regular pages
+| Iterations (n) |    Mean B/s |     Min B/s |     Max B/s | Range relative max |
+|----------------+-------------+-------------+-------------+--------------------|
+|              1 | 21474836480 | 20183116992 | 22557601344 | 10.5 %             |
+|              2 | 27012372930 | 25873296963 | 27709466425 | 6.6 %              |
+|              4 | 31145520638 | 29743540831 | 31767509585 | 6.4 %              |
+|              8 | 33738941838 | 32341621204 | 34073520793 | 5.1 %              |
+|             16 | 35183021060 | 34222846980 | 35407809530 | 3.3 %              |
+|             32 | 35914851435 | 34993113726 | 36118720033 | 3.1 %              |
+|             64 | 36313399247 | 35502932804 | 36514068403 | 2.8 %              |
+#+TBLFM: $5=($4-$3)*100/$4;%.1f %%
+
+** THP always, defrag never
+Transparent huge pages OS settings:
+
+#+begin_src bash
+  cat /sys/kernel/mm/transparent_hugepage/enabled
+#+end_src
+
+#+RESULTS:
+: [always] madvise never
+
+#+begin_src bash
+  cat /sys/kernel/mm/transparent_hugepage/defrag
+#+end_src
+
+#+RESULTS:
+: always defer defer+madvise madvise [never]
+
+#+begin_src bash
+cat /sys/kernel/mm/transparent_hugepage/hpage_pmd_size
+#+end_src
+
+#+RESULTS:
+: 2097152
+
+#+begin_src bash
+  cat /sys/kernel/mm/transparent_hugepage/khugepaged/defrag
+#+end_src
+
+#+RESULTS:
+: 0
+
+#+CAPTION: Benchmark result with regular pages
+| Iterations (n) |    Mean B/s |     Min B/s |     Max B/s | Range relative max |
+|----------------+-------------+-------------+-------------+--------------------|
+|              1 | 21474836480 | 20183116992 | 22557601344 | 10.5 %             |
+|              2 | 27012372930 | 25687603444 | 27853225006 | 7.8 %              |
+|              4 | 31168122612 | 30055754345 | 31744030273 | 5.3 %              |
+|              8 | 33712459152 | 32723560350 | 34033021362 | 3.8 %              |
+|             16 | 35197437377 | 34216031037 | 35429715784 | 3.4 %              |
+|             32 | 35971250385 | 35039504760 | 36130113951 | 3.0 %              |
+|             64 | 36359511500 | 35726268123 | 36492738960 | 2.1 %              |
+#+TBLFM: $5=($4-$3)*100/$4;%.1f %%
+
+** THP never, defrag never
+Transparent huge pages OS settings:
+
+#+begin_src bash
+  cat /sys/kernel/mm/transparent_hugepage/enabled
+#+end_src
+
+#+RESULTS:
+: always madvise [never]
+
+#+begin_src bash
+  cat /sys/kernel/mm/transparent_hugepage/defrag
+#+end_src
+
+#+RESULTS:
+: always defer defer+madvise madvise [never]
+
+#+begin_src bash
+cat /sys/kernel/mm/transparent_hugepage/hpage_pmd_size
+#+end_src
+
+#+RESULTS:
+: 2097152
+
+#+begin_src bash
+  cat /sys/kernel/mm/transparent_hugepage/khugepaged/defrag
+#+end_src
+
+#+RESULTS:
+: 0
+
+#+CAPTION: Benchmark result with regular pages
+| Iterations (n) |    Mean B/s |     Min B/s |     Max B/s | Range relative max |
+|----------------+-------------+-------------+-------------+--------------------|
+|              1 |  7461722195 |  6918439587 |  7540321797 | 8.2 %              |
+|              2 | 12377427365 | 11983725714 | 12492633205 | 4.1 %              |
+|              4 | 18472977617 | 18175908997 | 18592932017 | 2.2 %              |
+|              8 | 24500669115 | 24142593007 | 24612993100 | 1.9 %              |
+|             16 | 29267238814 | 28690496299 | 29377341285 | 2.3 %              |
+|             32 | 32457716198 | 31852914033 | 32537631030 | 2.1 %              |
+|             64 | 34309988884 | 34151414738 | 34385527513 | 0.7 %              |
+#+TBLFM: $5=($4-$3)*100/$4;%.1f %%
+
+** Observations
+Interpretations of results.
+
+The initial memset is much slower with regular pages compared to huge pages. The memset
+speed of regular pages asymptotes to that of the huge pages. The working theory is that the
+initial slowness with regular pages is caused by the higher page fault count when touching
+the freshly mapped memory (10 GB region).
