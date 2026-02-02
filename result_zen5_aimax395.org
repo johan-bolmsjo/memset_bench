@@ -15,14 +15,24 @@ herein, it used AVX-512 instructions.
 #0  __memset_avx512_unaligned_erms () at ../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:198
 #+end_example
 
-Compile benchmark:
-
+* Benchmarking
+** Compile Benchmark
 #+begin_src bash
   ./compile.bash
 #+end_src
 
-Data collection:
+** Preparations
+The following commands may make more huge pages available on your test system.
 
+#+begin_src bash
+  # Clear caches to maximize available RAM
+  echo 3 > /proc/sys/vm/drop_caches
+
+  # Rearrange RAM usage to maximise the size of free blocks
+  echo 1 > /proc/sys/vm/compact_memory
+#+end_src
+
+** Collect Data
 #+begin_src bash
   mkdir -p out
   for i in $(seq 250); do
@@ -32,8 +42,7 @@ Data collection:
   done
 #+end_src
 
-Data summary:
-
+** Analyze Data
 #+begin_src bash
   midline() {
     awk '{ a[NR]=$0 } END { print a[int((NR+1)/2)] }' "$1"
@@ -78,7 +87,6 @@ cat /sys/kernel/mm/transparent_hugepage/hpage_pmd_size
 #+RESULTS:
 : 1
 
-#+CAPTION: Benchmark result with transparent huge pages and defrag madvise
 | Iterations (n) |    Mean B/s |     Min B/s |     Max B/s | Range relative max |
 |----------------+-------------+-------------+-------------+--------------------|
 |              1 | 21474836480 | 20221126629 | 23241165021 | 13.0 %             |
@@ -121,7 +129,6 @@ cat /sys/kernel/mm/transparent_hugepage/hpage_pmd_size
 #+RESULTS:
 : 1
 
-#+CAPTION: Benchmark result with regular pages
 | Iterations (n) |    Mean B/s |     Min B/s |     Max B/s | Range relative max |
 |----------------+-------------+-------------+-------------+--------------------|
 |              1 | 21474836480 | 20183116992 | 22557601344 | 10.5 %             |
@@ -164,16 +171,16 @@ cat /sys/kernel/mm/transparent_hugepage/hpage_pmd_size
 #+RESULTS:
 : 0
 
-#+CAPTION: Benchmark result with regular pages
+#+RESULTS:
 | Iterations (n) |    Mean B/s |     Min B/s |     Max B/s | Range relative max |
 |----------------+-------------+-------------+-------------+--------------------|
-|              1 | 21474836480 | 20183116992 | 22557601344 | 10.5 %             |
-|              2 | 27012372930 | 25687603444 | 27853225006 | 7.8 %              |
-|              4 | 31168122612 | 30055754345 | 31744030273 | 5.3 %              |
-|              8 | 33712459152 | 32723560350 | 34033021362 | 3.8 %              |
-|             16 | 35197437377 | 34216031037 | 35429715784 | 3.4 %              |
-|             32 | 35971250385 | 35039504760 | 36130113951 | 3.0 %              |
-|             64 | 36359511500 | 35726268123 | 36492738960 | 2.1 %              |
+|              1 | 21517872224 | 20413342661 | 22510310775 | 9.3 %              |
+|              2 | 27012372930 | 25935792850 | 27889398025 | 7.0 %              |
+|              4 | 31190757414 | 30034736335 | 31744030273 | 5.4 %              |
+|              8 | 33712459152 | 32280851529 | 34087042031 | 5.3 %              |
+|             16 | 35161418714 | 33765466163 | 35385930348 | 4.6 %              |
+|             32 | 35892341343 | 35010941887 | 36080792153 | 3.0 %              |
+|             64 | 36342205688 | 35692866948 | 36436626053 | 2.0 %              |
 #+TBLFM: $5=($4-$3)*100/$4;%.1f %%
 
 ** THP never, defrag never
@@ -207,7 +214,6 @@ cat /sys/kernel/mm/transparent_hugepage/hpage_pmd_size
 #+RESULTS:
 : 0
 
-#+CAPTION: Benchmark result with regular pages
 | Iterations (n) |    Mean B/s |     Min B/s |     Max B/s | Range relative max |
 |----------------+-------------+-------------+-------------+--------------------|
 |              1 |  7461722195 |  6918439587 |  7540321797 | 8.2 %              |
